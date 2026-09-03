@@ -6,6 +6,7 @@ import { config } from './config/env.js';
 import { requestId } from './middleware/requestId.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFound } from './middleware/notFound.js';
+import { authMiddleware, requireRole } from './middleware/auth.js';
 import { healthRouter } from './modules/health/health.routes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { InsufficientFundsError } from './domain/errors.js';
@@ -28,6 +29,10 @@ export function buildApp() {
     app.get('/__crash', () => {
       throw new Error('kaboom');
     });
+    app.get('/__me', authMiddleware, (req, res) => res.json(req.auth));
+    app.get('/__admin', authMiddleware, requireRole('ADMIN'), (_req, res) =>
+      res.json({ ok: true }),
+    );
   }
 
   app.use(notFound);
