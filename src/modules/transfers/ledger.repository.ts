@@ -1,5 +1,5 @@
 import type { Prisma, Transfer } from '@prisma/client';
-import { InsufficientFundsError } from '../../domain/errors.js';
+import { InsufficientFundsError, ValidationError } from '../../domain/errors.js';
 import { TREASURY_ACCOUNT_ID } from '../../config/constants.js';
 
 export interface TransferParams {
@@ -14,6 +14,18 @@ export async function performTransfer(
   params: TransferParams,
 ): Promise<{ transfer: Transfer; reused: boolean }> {
   const { fromAccountId, toAccountId, amount, idempotencyKey } = params;
+
+  // Mesma conta nos dois lados: os dois updates partiriam do mesmo pre-image e o segundo
+  // sobrescreveria o primeiro, criando `amount` do nada. O lock de linha não protege disso
+  // (é intra-transação), então a guarda tem que viver aqui, no núcleo.
+  if (fromAccountId === toAccountId) {
+    throw new ValidationError('fromAccountId and toAccountId must differ');
+  }
+
+  // amount <= 0 fura a checagem de saldo (`100n < -50n` é false) e inverte o fluxo de dinheiro.
+  if (amount <= 0n) {
+    throw new ValidationError('amount must be greater than zero');
+  }
 
   const existing = await tx.transfer.findUnique({ where: { idempotencyKey } });
   if (existing) return { transfer: existing, reused: true };

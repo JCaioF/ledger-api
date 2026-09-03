@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { prisma } from '../../src/lib/prisma.js';
 import { executeTransfer } from '../../src/modules/transfers/transfer.service.js';
-import { InsufficientFundsError } from '../../src/domain/errors.js';
+import { InsufficientFundsError, ValidationError } from '../../src/domain/errors.js';
 import { makeUser, makeAccount } from '../helpers/factories.js';
 
 async function twoAccounts(fromBalance: bigint) {
@@ -66,5 +66,64 @@ describe('performTransfer via executeTransfer', () => {
 
     const fromAfter = await prisma.account.findUniqueOrThrow({ where: { id: from.id } });
     expect(fromAfter.balance).toBe(800n);
+  });
+
+  it('mesma conta nos dois lados → lança ValidationError e não cria dinheiro', async () => {
+    const user = await makeUser();
+    const account = await makeAccount(user.id, 1000n);
+
+    await expect(
+      executeTransfer({
+        fromAccountId: account.id,
+        toAccountId: account.id,
+        amount: 500n,
+        idempotencyKey: 'self',
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    const after = await prisma.account.findUniqueOrThrow({ where: { id: account.id } });
+    expect(after.balance).toBe(1000n);
+    expect(await prisma.transfer.count()).toBe(0);
+    expect(await prisma.ledgerEntry.count()).toBe(0);
+  });
+
+  it('amount negativo → lança ValidationError e não move saldo', async () => {
+    const { from, to } = await twoAccounts(1000n);
+
+    await expect(
+      executeTransfer({
+        fromAccountId: from.id,
+        toAccountId: to.id,
+        amount: -100n,
+        idempotencyKey: 'neg',
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    const fromAfter = await prisma.account.findUniqueOrThrow({ where: { id: from.id } });
+    const toAfter = await prisma.account.findUniqueOrThrow({ where: { id: to.id } });
+    expect(fromAfter.balance).toBe(1000n);
+    expect(toAfter.balance).toBe(0n);
+    expect(await prisma.transfer.count()).toBe(0);
+    expect(await prisma.ledgerEntry.count()).toBe(0);
+  });
+
+  it('amount zero → lança ValidationError e não cria Transfer no-op', async () => {
+    const { from, to } = await twoAccounts(1000n);
+
+    await expect(
+      executeTransfer({
+        fromAccountId: from.id,
+        toAccountId: to.id,
+        amount: 0n,
+        idempotencyKey: 'zero',
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    const fromAfter = await prisma.account.findUniqueOrThrow({ where: { id: from.id } });
+    const toAfter = await prisma.account.findUniqueOrThrow({ where: { id: to.id } });
+    expect(fromAfter.balance).toBe(1000n);
+    expect(toAfter.balance).toBe(0n);
+    expect(await prisma.transfer.count()).toBe(0);
+    expect(await prisma.ledgerEntry.count()).toBe(0);
   });
 });
