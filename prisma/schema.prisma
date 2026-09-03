@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum EntryDirection {
+  DEBIT
+  CREDIT
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  role         Role      @default(USER)
+  createdAt    DateTime  @default(now())
+  accounts     Account[]
+}
+
+model Account {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id])
+  balance   BigInt        @default(0)
+  currency  String        @default("BRL")
+  createdAt DateTime      @default(now())
+  entries   LedgerEntry[]
+
+  @@index([userId])
+}
+
+model Transfer {
+  id             String        @id @default(cuid())
+  idempotencyKey String        @unique
+  fromAccountId  String
+  toAccountId    String
+  amount         BigInt
+  status         String        @default("COMPLETED")
+  createdAt      DateTime      @default(now())
+  entries        LedgerEntry[]
+}
+
+model LedgerEntry {
+  id           String         @id @default(cuid())
+  transferId   String
+  transfer     Transfer       @relation(fields: [transferId], references: [id])
+  accountId    String
+  account      Account        @relation(fields: [accountId], references: [id])
+  direction    EntryDirection
+  amount       BigInt
+  balanceAfter BigInt
+  createdAt    DateTime       @default(now())
+
+  @@index([accountId, id])
+}
