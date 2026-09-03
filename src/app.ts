@@ -10,6 +10,7 @@ import { authMiddleware, requireRole } from './middleware/auth.js';
 import { healthRouter } from './modules/health/health.routes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { accountsRouter } from './modules/accounts/accounts.routes.js';
+import { transfersRouter } from './modules/transfers/transfers.routes.js';
 import { InsufficientFundsError } from './domain/errors.js';
 
 export function buildApp() {
@@ -23,6 +24,7 @@ export function buildApp() {
   app.use('/health', healthRouter);
   app.use('/auth', authRouter);
   app.use('/accounts', accountsRouter);
+  app.use('/transfers', transfersRouter);
 
   if (config.nodeEnv === 'test') {
     app.get('/__boom', () => {
