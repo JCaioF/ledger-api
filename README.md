@@ -29,7 +29,7 @@ flowchart LR
   M --> RD[(Redis)]
 ```
 
-Camadas: `routes` fazem parsing/validação de entrada (Zod) e amarram middleware; `controllers` traduzem HTTP ↔ chamadas de serviço; `services` contêm as regras de negócio (posse de conta, RBAC, orquestração de transferência); `repositories` são a única camada que fala com o Prisma. `LedgerRepository.performTransfer` é o núcleo transacional — todo movimento de dinheiro passa por ali, dentro de uma única transação Prisma. Redis é usado para o cache de idempotência e como store do rate limiter (`rate-limit-redis`), não para lógica de negócio.
+Camadas: `routes` fazem parsing/validação de entrada (Zod) e amarram middleware; `controllers` traduzem HTTP ↔ chamadas de serviço; `services` contêm as regras de negócio (posse de conta, RBAC, orquestração de transferência). `repositories` concentram a lógica transacional mais sensível — em especial `LedgerRepository.performTransfer`, o núcleo transacional por onde passa todo movimento de dinheiro, dentro de uma única transação Prisma; alguns services (auth, health, leitura de transfer) chamam o Prisma diretamente para queries simples, sem passar por um repository. Redis é usado para o cache de idempotência e como store do rate limiter (`rate-limit-redis`), não para lógica de negócio.
 
 ## 4. Rodar local
 
