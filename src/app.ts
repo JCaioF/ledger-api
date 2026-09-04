@@ -7,6 +7,7 @@ import { requestId } from './middleware/requestId.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFound } from './middleware/notFound.js';
 import { authMiddleware, requireRole } from './middleware/auth.js';
+import { authLimiter } from './middleware/rateLimit.js';
 import { healthRouter } from './modules/health/health.routes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { accountsRouter } from './modules/accounts/accounts.routes.js';
@@ -22,7 +23,7 @@ export function buildApp() {
   app.use(express.json());
 
   app.use('/health', healthRouter);
-  app.use('/auth', authRouter);
+  app.use('/auth', authLimiter, authRouter);
   app.use('/accounts', accountsRouter);
   app.use('/transfers', transfersRouter);
 
