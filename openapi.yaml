@@ -1,0 +1,175 @@
+openapi: 3.0.3
+info:
+  title: Ledger API
+  version: 1.0.0
+  description: Carteira digital com transferências atômicas, idempotentes e seguras sob concorrência.
+servers:
+  - url: http://localhost:3000
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            requestId: { type: string }
+    Account:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        balance: { type: string, description: centavos inteiros como string }
+        currency: { type: string }
+        createdAt: { type: string, format: date-time }
+    Transfer:
+      type: object
+      properties:
+        id: { type: string }
+        fromAccountId: { type: string }
+        toAccountId: { type: string }
+        amount: { type: string }
+        status: { type: string }
+        createdAt: { type: string, format: date-time }
+paths:
+  /health:
+    get:
+      summary: Liveness/readiness
+      responses:
+        '200': { description: healthy }
+        '503': { description: degraded }
+  /auth/register:
+    post:
+      summary: Cria usuário
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+      responses:
+        '201': { description: criado }
+        '400':
+          {
+            description: validação,
+            content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } },
+          }
+        '409': { description: email já registrado }
+  /auth/login:
+    post:
+      summary: Autentica e retorna JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string }
+      responses:
+        '200': { description: token }
+        '401': { description: credenciais inválidas }
+        '429': { description: rate limited }
+  /accounts:
+    post:
+      summary: Cria conta para o usuário autenticado
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201':
+          {
+            description: conta,
+            content: { application/json: { schema: { $ref: '#/components/schemas/Account' } } },
+          }
+        '401': { description: sem token }
+  /accounts/{id}:
+    get:
+      summary: Detalhe da conta (dono ou admin)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: conta }
+        '403': { description: não é sua conta }
+        '404': { description: conta não encontrada }
+  /accounts/{id}/deposits:
+    post:
+      summary: Depósito via treasury (admin)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount: { type: integer, minimum: 1 }
+      responses:
+        '201': { description: transferência de depósito }
+        '403': { description: não é admin }
+        '404': { description: conta não encontrada }
+  /accounts/{id}/statement:
+    get:
+      summary: Extrato paginado por cursor
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - {
+            name: limit,
+            in: query,
+            schema: { type: integer, minimum: 1, maximum: 100, default: 20 },
+          }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: página de lançamentos }
+        '403': { description: não é sua conta }
+  /transfers:
+    post:
+      summary: Transferência entre contas (idempotente)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fromAccountId, toAccountId, amount]
+              properties:
+                fromAccountId: { type: string }
+                toAccountId: { type: string }
+                amount: { type: integer, minimum: 1 }
+      responses:
+        '201':
+          {
+            description: transferência criada,
+            content: { application/json: { schema: { $ref: '#/components/schemas/Transfer' } } },
+          }
+        '200': { description: replay idempotente }
+        '400': { description: validação / header ausente }
+        '403': { description: origem não é sua }
+        '404': { description: conta não encontrada }
+        '422': { description: saldo insuficiente }
+        '429': { description: rate limited }
+  /transfers/{id}:
+    get:
+      summary: Detalhe da transferência (participante ou admin)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: transferência }
+        '403': { description: não é participante }
+        '404': { description: não encontrada }

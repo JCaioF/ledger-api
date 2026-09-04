@@ -1,7 +1,11 @@
 import 'express-async-errors';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import { parse as parseYaml } from 'yaml';
+import swaggerUi from 'swagger-ui-express';
 import { config } from './config/env.js';
 import { requestId } from './middleware/requestId.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -26,6 +30,13 @@ export function buildApp() {
   app.use('/auth', authLimiter, authRouter);
   app.use('/accounts', accountsRouter);
   app.use('/transfers', transfersRouter);
+
+  const openapiPath = path.join(process.cwd(), 'openapi.yaml');
+  const openapiRaw = readFileSync(openapiPath, 'utf8');
+  const openapiDoc = parseYaml(openapiRaw);
+
+  app.get('/openapi.yaml', (_req, res) => res.type('text/yaml').send(openapiRaw));
+  app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapiDoc));
 
   if (config.nodeEnv === 'test') {
     app.get('/__boom', () => {
