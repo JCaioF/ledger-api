@@ -1,8 +1,13 @@
 import { Router } from 'express';
 import { authMiddleware, requireRole } from '../../middleware/auth.js';
-import { validateBody } from '../../middleware/validate.js';
-import { createAccountHandler, getAccountHandler, depositHandler } from './accounts.controller.js';
-import { depositSchema } from './accounts.schemas.js';
+import { validateBody, validateQuery } from '../../middleware/validate.js';
+import {
+  createAccountHandler,
+  getAccountHandler,
+  depositHandler,
+  statementHandler,
+} from './accounts.controller.js';
+import { depositSchema, statementQuerySchema } from './accounts.schemas.js';
 
 export const accountsRouter = Router();
 
@@ -15,3 +20,4 @@ accountsRouter.post(
   depositHandler,
 );
 accountsRouter.get('/:id', getAccountHandler);
+accountsRouter.get('/:id/statement', validateQuery(statementQuerySchema), statementHandler);

@@ -17,3 +17,17 @@ export async function depositHandler(req: Request, res: Response) {
   const transfer = await service.deposit(req.params.id, req.body.amount);
   res.status(201).json(toTransferDTO(transfer));
 }
+
+export async function statementHandler(req: Request, res: Response) {
+  const result = await service.getStatement(
+    req.auth!,
+    req.params.id,
+    req.validatedQuery as {
+      limit: number;
+      cursor?: string;
+      from?: Date;
+      to?: Date;
+    },
+  );
+  res.status(200).json(result);
+}
