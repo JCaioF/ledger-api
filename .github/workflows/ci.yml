@@ -29,5 +29,7 @@ jobs:
       - run: npx prisma migrate deploy
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm run test
+      - run: npm run test -- --coverage
+      - uses: actions/upload-artifact@v4
+        with: { name: coverage, path: coverage }
       - run: npm run build

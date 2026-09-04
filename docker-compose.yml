@@ -9,3 +9,11 @@ services:
   redis:
     image: redis:7-alpine
     ports: ['6379:6379']
+  app:
+    build: .
+    depends_on: [postgres, redis]
+    environment:
+      DATABASE_URL: postgresql://ledger:ledger@postgres:5432/ledger?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: local-compose-secret-1234567890
+    ports: ['3000:3000']
