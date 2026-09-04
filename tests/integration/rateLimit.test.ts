@@ -10,12 +10,16 @@ describe('rate limiting', () => {
   it('/auth/login: 4ª tentativa em 1 min → 429 (AUTH_RATE_MAX=3)', async () => {
     const body = { email: 'rl@test.local', password: 'password123' };
     await request(app).post('/auth/register').send(body);
-    const codes: number[] = [];
+    const responses = [];
     for (let i = 0; i < 4; i += 1) {
-      const res = await request(app).post('/auth/login').send(body);
-      codes.push(res.status);
+      responses.push(await request(app).post('/auth/login').send(body));
     }
-    expect(codes[3]).toBe(429);
+    const blocked = responses[3];
+    expect(blocked.status).toBe(429);
+    expect(blocked.body).toMatchObject({
+      error: { code: 'RATE_LIMITED', message: 'Too many requests' },
+    });
+    expect(blocked.body.error.requestId).toEqual(expect.any(String));
   });
 
   it('/transfers: 5ª chamada → 429 (TRANSFER_RATE_MAX=4)', async () => {
@@ -23,16 +27,22 @@ describe('rate limiting', () => {
     const bob = await makeUser();
     const from = await makeAccount(alice.id, 100000n);
     const to = await makeAccount(bob.id, 0n);
-    const statuses: number[] = [];
+    const responses = [];
     for (let i = 0; i < 5; i += 1) {
-      const res = await request(app)
-        .post('/transfers')
-        .set(authHeaderFor(alice))
-        .set('Idempotency-Key', `rl-${i}`)
-        .send({ fromAccountId: from.id, toAccountId: to.id, amount: 10 });
-      statuses.push(res.status);
+      responses.push(
+        await request(app)
+          .post('/transfers')
+          .set(authHeaderFor(alice))
+          .set('Idempotency-Key', `rl-${i}`)
+          .send({ fromAccountId: from.id, toAccountId: to.id, amount: 10 }),
+      );
     }
-    expect(statuses[4]).toBe(429);
-    expect(statuses.slice(0, 4).every((s) => s === 201)).toBe(true);
+    const blocked = responses[4];
+    expect(blocked.status).toBe(429);
+    expect(blocked.body).toMatchObject({
+      error: { code: 'RATE_LIMITED', message: 'Too many requests' },
+    });
+    expect(blocked.body.error.requestId).toEqual(expect.any(String));
+    expect(responses.slice(0, 4).every((r) => r.status === 201)).toBe(true);
   });
 });
