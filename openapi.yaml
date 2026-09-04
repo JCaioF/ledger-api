@@ -63,6 +63,7 @@ paths:
             content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } },
           }
         '409': { description: email já registrado }
+        '429': { description: rate limited }
   /auth/login:
     post:
       summary: Autentica e retorna JWT
@@ -90,7 +91,11 @@ paths:
             description: conta,
             content: { application/json: { schema: { $ref: '#/components/schemas/Account' } } },
           }
-        '401': { description: sem token }
+        '401':
+          {
+            description: sem token,
+            content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } },
+          }
   /accounts/{id}:
     get:
       summary: Detalhe da conta (dono ou admin)
@@ -98,6 +103,11 @@ paths:
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       responses:
         '200': { description: conta }
+        '401':
+          {
+            description: sem token,
+            content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } },
+          }
         '403': { description: não é sua conta }
         '404': { description: conta não encontrada }
   /accounts/{id}/deposits:
@@ -116,6 +126,16 @@ paths:
                 amount: { type: integer, minimum: 1 }
       responses:
         '201': { description: transferência de depósito }
+        '400':
+          {
+            description: amount inválido,
+            content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } },
+          }
+        '401':
+          {
+            description: sem token,
+            content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } },
+          }
         '403': { description: não é admin }
         '404': { description: conta não encontrada }
   /accounts/{id}/statement:
@@ -134,7 +154,18 @@ paths:
         - { name: to, in: query, schema: { type: string, format: date-time } }
       responses:
         '200': { description: página de lançamentos }
+        '400':
+          {
+            description: query inválida,
+            content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } },
+          }
+        '401':
+          {
+            description: sem token,
+            content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } },
+          }
         '403': { description: não é sua conta }
+        '404': { description: conta não encontrada }
   /transfers:
     post:
       summary: Transferência entre contas (idempotente)
@@ -160,8 +191,18 @@ paths:
           }
         '200': { description: replay idempotente }
         '400': { description: validação / header ausente }
+        '401':
+          {
+            description: sem token,
+            content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } },
+          }
         '403': { description: origem não é sua }
         '404': { description: conta não encontrada }
+        '409':
+          {
+            description: idempotency key em uso por requisição concorrente ainda em andamento,
+            content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } },
+          }
         '422': { description: saldo insuficiente }
         '429': { description: rate limited }
   /transfers/{id}:
@@ -171,5 +212,10 @@ paths:
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       responses:
         '200': { description: transferência }
+        '401':
+          {
+            description: sem token,
+            content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } },
+          }
         '403': { description: não é participante }
         '404': { description: não encontrada }
