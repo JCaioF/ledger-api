@@ -38,14 +38,17 @@ O projeto foi desenvolvido com Postgres e Redis nativos na máquina (não em con
 Pré-requisitos: Docker (ou Postgres 16 + Redis 7 instalados localmente) e Node 20+.
 
 ```bash
-# 1. Sobe Postgres + Redis + a própria API em containers, builda a imagem de produção
+# 1. Sobe Postgres + Redis + a própria API em containers, builda a imagem de produção.
+#    `app` só sobe depois que o healthcheck do `postgres` reporta saudável (compose
+#    `depends_on: postgres: condition: service_healthy`), então não há corrida entre o
+#    `prisma migrate deploy` do entrypoint e o Postgres ainda subindo.
 docker compose up -d --build
 
 # entrypoint.sh do container `app` já roda `prisma migrate deploy` antes de subir o servidor.
 # 2. Seed (cria a conta treasury + usuário admin@ledger.local / admin12345).
-#    A imagem de runtime é buildada com `npm ci --omit=dev`, então `tsx` (usado pelo script de
-#    seed) não está nela — rode o seed do host, apontando para o Postgres exposto pelo compose:
-DATABASE_URL="postgresql://ledger:ledger@localhost:5432/ledger?schema=public" npm run prisma:seed
+#    `tsx` e `prisma` são dependências de runtime (não devDependencies), então o comando
+#    roda dentro do próprio container, sem precisar do host:
+docker compose exec app npm run prisma:seed
 
 # 3. Testar
 curl -fsS http://localhost:3000/health
@@ -150,5 +153,3 @@ Formato de erro (todo erro de domínio segue este shape; ver `src/middleware/err
 - **Moeda única por conta, sem conversão.** `Account.currency` existe no schema mas hoje é sempre `"BRL"`; não há taxa de câmbio nem transferência entre moedas.
 - **Sem refresh token.** `POST /auth/login` emite um único JWT com expiração fixa (`JWT_EXPIRES_IN`, padrão 1h); expirado, o cliente precisa logar de novo — não há endpoint de refresh nem revogação de token.
 - **Redis free do Render hiberna.** Se o Redis do deploy usar o free tier (Render ou Upstash), ele pode hibernar por inatividade; a primeira requisição após um período ocioso pode ser mais lenta ou falhar até o Redis acordar (afeta o rate limiter e o cache de idempotência, não a integridade dos dados — a constraint `@unique` no banco continua garantindo idempotência mesmo se o Redis estiver fora do ar).
-- **Seed da imagem Docker exige `tsx` do host.** A imagem de runtime é buildada com `npm ci --omit=dev`; `tsx` (dependência de desenvolvimento usada pelo script de seed) não está nela. Ver seção 4 para o workaround (rodar o seed do host contra o Postgres exposto).
-- **`entrypoint.sh` depende de rede no boot do container.** O CLI `prisma` (usado por `npx prisma migrate deploy`) também é `devDependency`, então na imagem de runtime (`npm ci --omit=dev`) o `npx` baixa o pacote do registro do npm a cada start do container em vez de usar um binário já instalado — precisa de acesso à internet de saída no ambiente de deploy e adiciona latência ao boot. Funciona nos provedores usuais (Render, Fly.io têm egress liberado), mas é um ponto de atenção para deploy em rede restrita.
