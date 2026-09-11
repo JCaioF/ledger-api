@@ -30,6 +30,17 @@ export async function getAccount(auth: AuthContext, accountId: string) {
 export async function deposit(accountId: string, amount: number) {
   const account = await repo.findById(accountId);
   if (!account) throw new AccountNotFoundError();
+
+  // Defesa em profundidade: um deploy onde o seed não rodou não tem a conta
+  // `treasury`, e o findUniqueOrThrow lá dentro do performTransfer estouraria um
+  // P2025 cru → 500 "Internal server error", sem pista do que está faltando.
+  const treasury = await repo.findById(TREASURY_ACCOUNT_ID);
+  if (!treasury) {
+    throw new AccountNotFoundError(
+      `Treasury account "${TREASURY_ACCOUNT_ID}" is missing — run the database seed`,
+    );
+  }
+
   const { transfer } = await executeTransfer({
     fromAccountId: TREASURY_ACCOUNT_ID,
     toAccountId: accountId,

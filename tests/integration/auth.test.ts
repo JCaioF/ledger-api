@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { buildApp } from '../../src/app.js';
+import { prisma } from '../../src/lib/prisma.js';
 
 const app = buildApp();
 
@@ -20,6 +21,27 @@ describe('POST /auth/register', () => {
     const res = await request(app).post('/auth/register').send(body);
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('CONFLICT');
+  });
+
+  it('dois registros simultâneos do mesmo e-mail → 201 + 409, nunca 500', async () => {
+    const body = { email: 'race@test.local', password: 'password123' };
+    const send = () => request(app).post('/auth/register').send(body);
+
+    // Construídas antes de qualquer await: as duas passam pelo `findUnique` de
+    // pre-check antes de qualquer `create` terminar, então a perdedora bate na
+    // unique de `User.email` (P2002). Sem o catch de P2002 no service isso vira
+    // 500. AUTH_RATE_MAX=3 no .env.test, então 2 chamadas não dão 429.
+    const settled = await Promise.allSettled([send(), send()]);
+
+    expect(settled.map((r) => r.status)).toEqual(['fulfilled', 'fulfilled']);
+    const statuses = settled.map(
+      (r) => (r as PromiseFulfilledResult<{ status: number }>).value.status,
+    );
+
+    expect(statuses).not.toContain(500);
+    expect(statuses.filter((s) => s === 201)).toHaveLength(1);
+    expect(statuses.filter((s) => s === 409)).toHaveLength(1);
+    expect(await prisma.user.count({ where: { email: body.email } })).toBe(1);
   });
 
   it('senha curta → 400', async () => {

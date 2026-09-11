@@ -37,8 +37,8 @@ export class NotFoundError extends AppError {
 }
 
 export class AccountNotFoundError extends AppError {
-  constructor() {
-    super('Account not found', 404, 'ACCOUNT_NOT_FOUND');
+  constructor(message = 'Account not found') {
+    super(message, 404, 'ACCOUNT_NOT_FOUND');
   }
 }
 

@@ -9,10 +9,13 @@ services:
         generateValue: true
       - key: DATABASE_URL
         fromDatabase: { name: ledger-db, property: connectionString }
-      # Redis: crie um serviço Redis free no painel Render (ou use Upstash) e
-      # ligue a connection string na env var REDIS_URL do serviço ledger-api.
+      # Redis NÃO é declarado neste blueprint (Render só permite um recurso gerenciado
+      # no free tier, usado aqui pelo Postgres). Provisione separadamente — Render Key
+      # Value/Redis ou um provedor externo como Upstash — e cole a connection string em
+      # REDIS_URL no painel do serviço ledger-api. `sync: false` faz o Render pedir o
+      # valor no deploy e preservá-lo, em vez de tentar resolver um serviço inexistente.
       - key: REDIS_URL
-        fromService: { name: ledger-redis, type: keyvalue, property: connectionString }
+        sync: false
 databases:
   - name: ledger-db
     plan: free

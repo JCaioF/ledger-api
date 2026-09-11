@@ -25,6 +25,13 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - run: npm ci
+      # Advisory, não bloqueante: o único high/critical hoje é `tar`, alcançado via
+      # `@mapbox/node-pre-gyp` (dependência de build do argon2), e só some com um
+      # major do argon2 — bump arriscado num módulo nativo de hash de senha. O step
+      # deixa o relatório visível no log a cada run sem deixar o CI vermelho de
+      # origem; vire `continue-on-error: false` quando o argon2 for atualizado.
+      - run: npm audit --audit-level=high
+        continue-on-error: true
       - run: npx prisma generate
       - run: npx prisma migrate deploy
       - run: npm run lint
