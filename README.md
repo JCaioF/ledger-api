@@ -1,5 +1,7 @@
 # Ledger API
 
+[![CI](https://github.com/JCaioF/ledger-api/actions/workflows/ci.yml/badge.svg)](https://github.com/JCaioF/ledger-api/actions/workflows/ci.yml)
+
 API de carteira digital (double-entry ledger) em Node.js + TypeScript + Express + PostgreSQL (Prisma) + Redis.
 
 ## 1. O que é
