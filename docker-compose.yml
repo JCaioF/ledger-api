@@ -25,4 +25,8 @@ services:
       DATABASE_URL: postgresql://ledger:ledger@postgres:5432/ledger?schema=public
       REDIS_URL: redis://redis:6379
       JWT_SECRET: local-compose-secret-1234567890
+      # Local dev convenience only — never a real deploy value. Seeds a
+      # login-capable admin@ledger.local user with this password. Omit this
+      # var entirely for a real deploy; see README for details.
+      ADMIN_PASSWORD: local-dev-only-change-me
     ports: ['3000:3000']

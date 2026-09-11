@@ -16,6 +16,10 @@ services:
       # valor no deploy e preservá-lo, em vez de tentar resolver um serviço inexistente.
       - key: REDIS_URL
         sync: false
+      # Opcional: define no dashboard do Render para provisionar um admin
+      # login-capable (admin@ledger.local); sem ela só a treasury é seedada.
+      - key: ADMIN_PASSWORD
+        sync: false
 databases:
   - name: ledger-db
     plan: free

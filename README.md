@@ -45,11 +45,20 @@ Pré-requisitos: Docker (ou Postgres 16 + Redis 7 instalados localmente) e Node 
 docker compose up -d --build
 
 # Não há passo manual de migrate nem de seed: o entrypoint.sh do container `app` roda
-# `prisma migrate deploy` e em seguida `node dist/prisma/seed.js` (cria a conta treasury
-# + o usuário admin@ledger.local / admin12345) antes de subir o servidor. O seed é
-# `upsert`, então repetir a cada boot é inofensivo. Ele roda o JS compilado e não
-# `npm run prisma:seed`, porque a imagem de runtime não copia `src/` — o `prisma/seed.ts`
-# importa `../src/config/constants.js`, que só existe lá como `dist/src/config/constants.js`.
+# `prisma migrate deploy` e em seguida `node dist/prisma/seed.js` antes de subir o
+# servidor. O seed sempre cria/atualiza um usuário "system" (email
+# system@ledger.local, senha aleatória descartada na hora, nunca logável) que é o
+# dono da conta treasury — isso é incondicional, porque depósitos e transferências
+# dependem só da treasury existir. Um usuário ADMIN de verdade (admin@ledger.local),
+# esse sim logável, só é criado se a env var `ADMIN_PASSWORD` estiver definida antes
+# do primeiro boot do container; sem ela, a treasury e as transferências entre contas
+# existentes funcionam normalmente, só a rota de depósito (ADMIN-only) fica
+# inacessível até alguém provisionar um admin. Local: defina `ADMIN_PASSWORD` no
+# `.env`/`docker-compose.yml`. Render: defina pelo dashboard do serviço (env var
+# `sync: false` em `render.yaml`, nunca commitada). O seed é `upsert`, então repetir
+# a cada boot é inofensivo. Ele roda o JS compilado e não `npm run prisma:seed`,
+# porque a imagem de runtime não copia `src/` — o `prisma/seed.ts` importa
+# `../src/config/constants.js`, que só existe lá como `dist/src/config/constants.js`.
 
 # 2. Testar
 curl -fsS http://localhost:3000/health
@@ -95,10 +104,12 @@ ACCOUNT_ID=$(curl -s -X POST $BASE/accounts \
   -H "Authorization: Bearer $TOKEN" | node -pe 'JSON.parse(require("fs").readFileSync(0)).id')
 # 201 -> {"id":"...","userId":"...","balance":"0","currency":"BRL","createdAt":"..."}
 
-# Depósito (requer usuário ADMIN — o seed cria admin@ledger.local / admin12345)
+# Depósito (requer usuário ADMIN — só existe se ADMIN_PASSWORD foi definida antes
+# do boot do container; o email é sempre admin@ledger.local, a senha é o valor que
+# você definiu em ADMIN_PASSWORD — ver seção 4)
 ADMIN_TOKEN=$(curl -s -X POST $BASE/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@ledger.local","password":"admin12345"}' | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')
+  -d '{"email":"admin@ledger.local","password":"'"$ADMIN_PASSWORD"'"}' | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')
 
 curl -s -X POST $BASE/accounts/$ACCOUNT_ID/deposits \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -147,7 +158,7 @@ Formato de erro (todo erro de domínio segue este shape; ver `src/middleware/err
 
 - Swagger UI: `GET /docs` (spec servida também em `GET /openapi.yaml`).
 - Demo ao vivo: `<preencher após o deploy — ver Apêndice do plano>`.
-- Deploy (Render): o blueprint `render.yaml` declara o web service e o Postgres. **Redis não é declarado ali** — provisione à parte (Render Key Value/Redis ou Upstash) e cole a connection string em `REDIS_URL` pelo painel do serviço. Não existe passo manual de migrate ou seed depois do deploy: o `entrypoint.sh` roda `prisma migrate deploy` + o seed a cada boot. Isso é o que torna o free tier viável — ele não dá shell no container, então qualquer runbook que dependesse de "rodar o seed pelo shell do Render" simplesmente não teria como ser executado.
+- Deploy (Render): o blueprint `render.yaml` declara o web service e o Postgres. **Redis não é declarado ali** — provisione à parte (Render Key Value/Redis ou Upstash) e cole a connection string em `REDIS_URL` pelo painel do serviço. Não existe passo manual de migrate ou seed depois do deploy: o `entrypoint.sh` roda `prisma migrate deploy` + o seed a cada boot. Isso é o que torna o free tier viável — ele não dá shell no container, então qualquer runbook que dependesse de "rodar o seed pelo shell do Render" simplesmente não teria como ser executado. O seed sempre cria a conta treasury (dona: um usuário "system" não-logável). Para ter um admin logável em produção, defina `ADMIN_PASSWORD` no painel do serviço **antes** do primeiro boot (`render.yaml` declara essa var com `sync: false`, então o Render pede o valor no deploy e nunca a commita); sem ela, o deploy sobe normalmente, mas a rota de depósito fica inacessível até você definir a var e reiniciar o serviço.
 
 ## 8. Limitações conhecidas
 
